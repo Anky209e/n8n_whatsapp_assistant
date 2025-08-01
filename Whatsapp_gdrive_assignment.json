@@ -1,0 +1,383 @@
+{
+  "name": "Whatsapp_gdrive_assignment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -112
+      ],
+      "webhookId": "d50cfe80-9b1a-441d-a86b-45c2608f51bf",
+      "id": "9f42ea6e-d726-4627-979f-42a3d20084ad"
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "from urllib.parse import unquote\n\ndef parse_command(body):\n    if not body:\n        return {'error': 'Empty command. Use: LIST/DELETE/MOVE/SUMMARY <path>'}\n    parts = str(body).strip().split(maxsplit=2)  # Ensure `body` is treated as a string\n    action = parts[0].upper() if parts else None\n    path = unquote(parts[1]) if len(parts) > 1 else None\n    return {'action': action, 'path': path}\n\n# Process input\noutput = []\nfor item in _input.all():\n    command_data = item.json\n    if 'Body' not in command_data:\n        output.append({'error': 'No \"Body\" field in input'})\n        continue\n    parsed = parse_command(command_data['Body'])\n    output.append(parsed)\n\nreturn output"
+      },
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -96
+      ],
+      "id": "79f6eed9-eec3-46ff-91e0-19f3dd2293bf"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "value1": "={{$json.action}}",
+              "operation": "equal",
+              "value2": "LIST"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Is LIST?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        816,
+        -112
+      ],
+      "id": "64378594-7ad0-4eb9-9a60-152c5f51314b"
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "options": {}
+      },
+      "name": "Google Drive LIST",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -112
+      ],
+      "id": "e9f47c0d-679a-4ff8-b3ab-5621354d4046",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "{{GOOGLE_DRIVE_CREDENTIAL_ID}}",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "value1": "={{$json.action}}",
+              "operation": "equal",
+              "value2": "DELETE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Is DELETE?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        816,
+        48
+      ],
+      "id": "25938642-6c89-4b7a-9dc3-9392ab9c56b7"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "fileId": "={{$json.path.split('/').pop()}}"
+      },
+      "name": "Google Drive DELETE",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        48
+      ],
+      "id": "c1f37f17-6063-4fa6-90de-312f6c46941c",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "{{GOOGLE_DRIVE_CREDENTIAL_ID}}",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "value1": "={{$json.action}}",
+              "operation": "equal",
+              "value2": "SUMMARY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Is SUMMARY?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        832,
+        256
+      ],
+      "id": "f0435c7d-9ec9-456f-80ec-53304d52fab9"
+    },
+    {
+      "parameters": {
+        "operation": "get"
+      },
+      "name": "Google Drive GET",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        224
+      ],
+      "id": "b5bc7110-fbb8-4a88-9fa7-4499a19e88ba",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "{{GOOGLE_DRIVE_CREDENTIAL_ID}}",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "files = [item.json for item in _input.all()]\nformatted = []\n\nfor file in files:\n    name = file.get(\"name\", \"[No Name]\")\n    mime = file.get(\"mimeType\", \"\")\n    formatted.append(f\"• {name}\")\n\nif not formatted:\n    return [{\n        \"response\": \"📂 This folder is empty.\"\n    }]\n\nreturn [{\n    \"response\": (\n        f\"📁 Google Drive Files ({len(formatted)} items)\\n\\n\" +\n        \"\\n\".join(formatted) +\n        \"\\n\\nUse 'DOWNLOAD filename' to get a file\"\n    ),\n    \"files\": files\n}]\n"
+      },
+      "name": "Format LIST Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        -112
+      ],
+      "id": "6551a271-8ecb-4265-bac3-1c3b160dceee"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all();"
+      },
+      "name": "Format DELETE Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        48
+      ],
+      "id": "72ef023b-1463-4a65-957f-b05a1fc6166e"
+    },
+    {
+      "parameters": {},
+      "name": "Format SUMMARY Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        240
+      ],
+      "id": "7ff0c6aa-ecf3-4b6d-82f5-ded2cc701e47"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{TWILIO_ACCOUNT_SID}}/Messages.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "=whatsapp:{{RECIPIENT_NUMBER}}"
+            },
+            {
+              "name": "From",
+              "value": "whatsapp:+14155238886"
+            },
+            {
+              "name": "Body",
+              "value": "={{$json.response}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Twilio Send Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1616,
+        48
+      ],
+      "id": "109fb15a-3c2c-41f0-afa3-3fcca98f066f",
+      "credentials": {
+        "twilioApi": {
+          "id": "{{TWILIO_CREDENTIAL_ID}}",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Is LIST?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is DELETE?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is SUMMARY?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is LIST?": {
+      "main": [
+        [
+          {
+            "node": "Google Drive LIST",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is DELETE?": {
+      "main": [
+        [
+          {
+            "node": "Google Drive DELETE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is SUMMARY?": {
+      "main": [
+        [
+          {
+            "node": "Google Drive GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive LIST": {
+      "main": [
+        [
+          {
+            "node": "Format LIST Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive DELETE": {
+      "main": [
+        [
+          {
+            "node": "Format DELETE Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LIST Response": {
+      "main": [
+        [
+          {
+            "node": "Twilio Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format DELETE Response": {
+      "main": [
+        [
+          {
+            "node": "Twilio Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SUMMARY Response": {
+      "main": [
+        [
+          {
+            "node": "Twilio Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive GET": {
+      "main": [
+        [
+          {
+            "node": "Format SUMMARY Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "76a260d4-e1f6-4bb6-8fb6-396b3d751217",
+  "meta": {
+    "instanceId": "73e04585fcfe5c810644a24892ed319fda12ec6f7bc291312d378001562d03bf"
+  },
+  "id": "AQXfaKzMh4Nzz8sG",
+  "tags": []
+}
